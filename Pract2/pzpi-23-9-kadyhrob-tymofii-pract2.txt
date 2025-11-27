@@ -1,1 +1,440 @@
+Міністерство освіти і науки України
+Харківський національний університет радіоелектроніки
+Кафедра програмної інженерії
+
+
+
+
+
+Звіт
+до практичного завдання №2
+з дисципліни «Аналіз та рефакторинг коду»
+на тему: «Методи рефакторингу коду програмного забезпечення: Add Parameter , Remove Parameter , Replace Constructor with Factory Method на мові С#»
+
+
+
+
+
+
+
+Виконав:
+ст. гр. ПЗПІ-23-9
+Кадигроб Тимофій Андрійович
+	                     Перевірив:
+                     ст. викладач кафедри ПІ
+                     Сокорчук Ігор Петрович	
+
+
+
+
+Харків 2025
+1 ІСТОРІЯ ЗМІН
+№	Дата	Версія звіту	Опис змін та виправлень
+1	25.11.2025	0.1	Початкова версія документу.
+2	26.11.2025	0.2	Додано приклади коду та пояснення.
+3	27.11.2025	1.0	Оформлено остаточний варіант звіту.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+2 ЗАВДАННЯ
+Обрати три методи рефакторингу зі списку запропонованих. Проаналізувати власний програмний код, написаний на C#, та виявити ділянки, де застосування цих методів буде доречним. Для кожного обраного методу необхідно продемонструвати процес рефакторингу на конкретних прикладах з вашого коду, показавши початковий стан коду, внесені зміни та кінцевий результат.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+3 ОПИС ВИКОНАНОЇ РОБОТИ
+3.1 Вибір методів рефакторингу
+
+Для рефакторингу було обрано три методи з книги Мартіна Фаулера:
+1. Add Parameter (Додавання параметра)
+	2. Remove Parameter (Видалення параметра)
+	3. Replace Constructor with Factory Method (Заміна конструктора    фабричним методом)
+ 
+3.2 Застосування методу Add Parameter
+
+	3.2.1 Опис проблеми
+У класі HoleManager методи AddHoles() і CheckHoleCollision() містять дубльований список координат отворів. Це порушує принцип DRY (Don't Repeat Yourself) і ускладнює підтримку коду. При зміні розташування отворів необхідно вносити зміни в двох місцях, що може призвести до помилок.
+
+3.2.2 Код до рефакторингу
+
+internal class HoleManager
+{
+    private GameField field;
+
+    public HoleManager(GameField gameField)
+    {
+        field = gameField;
+    }
+
+    public void AddHoles()
+    {
+        var holes = new List<(int, int)>
+        {
+            (0, 5), (3, 0), (5, 0), (9, 4), (7, 9), (8, 0), (0, 1), (4, 9)
+        };
+
+        foreach (var pos in holes)
+        {
+            field.SetCell(pos.Item1, pos.Item2, '0');
+        }
+    }
+
+    public void CheckHoleCollision(Player player, Action onDeath)
+    {
+        var holes = new List<(int, int)>
+        {
+            (0, 5), (3, 0), (5, 0), (9, 4), (7, 9), (8, 0), (0, 1), (4, 9)
+        };
+
+        if (holes.Any(hole => hole.Item1 == player.Y && hole.Item2 == player.X))
+        {
+            onDeath();
+            player.Die();
+        }
+    }
+}
+
+	
+	3.2.3 Пояснення обраного методу
+	Метод Add Parameter дозволяє додати параметр до методу для усунення дублювання коду. У цьому випадку ми створимо загальний метод для отримання списку отворів.
+
+	3.2.4 Код після рефакторингу
+
+using System.Numerics;
+
+internal class HoleManager
+{
+    private GameField field;
+
+    public HoleManager(GameField gameField)
+    {
+        field = gameField;
+    }
+
+    private List<(int, int)> GetHolesPositions()
+    {
+        return new List<(int, int)>
+        {
+            (0, 5), (3, 0), (5, 0), (9, 4), (7, 9), (8, 0), (0, 1), (4, 9)
+        };
+    }
+
+    public void AddHoles()
+    {
+        foreach (var pos in GetHolesPositions())
+        {
+            field.SetCell(pos.Item1, pos.Item2, '0');
+        }
+    }
+
+    public void CheckHoleCollision(Player player, Action onDeath)
+    {
+        if (GetHolesPositions().Any(hole => hole.Item1 == player.Y && hole.Item2 == player.X))
+        {
+            onDeath();
+            player.Die();
+        }
+    }
+}
+
+	3.2.5 Переваги отриманого коду
+	1) Усунено дублювання коду
+	2) Покращено підтримку: зміни в розташуванні отворів тепер вносяться в одному місці
+	3) Зменшена ймовірність помилок при модифікації
+
+	3.3 Застосування методу Remove Parameter
+	
+	3.3.1 Опис проблеми
+	У класі Game конструктор приймає параметр MainFrame form, який потім передається в різні менеджери. Однак цей параметр не використовується безпосередньо в класі Game, що свідчить про надлишковість.
+
+	3.3.2 Код до рефакторингу 
+	
+	using System.Numerics;
+
+internal class Game
+{
+    private GameField field;
+    private Player player;
+    private CoinManager coinManager;
+    private BarrierManager barrierManager;
+    private HoleManager holeManager;
+    private MainFrame form; // Надлишковий параметр
+    private bool isGameOver;
+
+    public Game(MainFrame form) // Параметр form не використовується безпосередньо
+    {
+        this.form = form;
+        field = new GameField(form);
+        player = new Player(field);
+        coinManager = new CoinManager(field);
+        barrierManager = new BarrierManager(field);
+        holeManager = new HoleManager(field);
+    }
+}
+
+	3.3.3 Пояснення обраного методу 
+	Метод Remove Parameter дозволяє видалити невикористовувані параметри, що спрощує інтерфейс класу та робить код більш зрозумілим.
+
+	3.3.4 Код після рефакторингу 
+	
+	using System.Numerics;
+
+internal class Game
+{
+    private GameField field;
+    private Player player;
+    private CoinManager coinManager;
+    private BarrierManager barrierManager;
+    private HoleManager holeManager;
+    private bool isGameOver;
+
+    public Game(MainFrame form)
+    {
+        field = new GameField(form);
+        player = new Player(field);
+        coinManager = new CoinManager(field);
+        barrierManager = new BarrierManager(field);
+        holeManager = new HoleManager(field);
+    }
+}
+
+	3.3.5 Переваги отриманого коду 
+	1) Спрощений інтерфейс класу
+	2) Видалено надлишкове поле
+	3) Покращена читабельність коду
+	4) Зменшена зв'язаність між класами
+
+	3.4 Застосування методу Replace Constructor with Factory Method
+
+
+	3.4.1 Опис проблеми
+	Клас GameField створюється безпосередньо через конструктор в класі Game. Це обмежує гнучкість створення об'єкта та ускладнює тестування.
+
+	3.4.2 Код до рефакторингу
+	
+	using System.Numerics;
+
+internal class Game
+{
+    public Game(MainFrame form)
+    {
+        field = new GameField(form); // Пряме створення через конструктор
+        player = new Player(field);
+        coinManager = new CoinManager(field);
+        barrierManager = new BarrierManager(field);
+        holeManager = new HoleManager(field);
+    }
+}
+
+internal class GameField
+{
+    private char[,] field;
+    private MainFrame form;
+
+    public GameField(MainFrame form)
+    {
+        this.form = form;
+        field = new char[10, 10];
+    }
+}
+
+	3.4.3 Пояснення обраного методу 
+	Метод Replace Constructor with Factory Method дозволяє замінити прямий виклик конструктора фабричним методом, що надає більшу гнучкість при створенні об'єктів та полегшує тестування.
+
+	3.4.4 Код після рефакторингу
+	
+	using System.Numerics;
+
+internal class Game
+{
+    public Game(MainFrame form)
+    {
+        field = CreateGameField(form); // Фабричний метод
+        player = new Player(field);
+        coinManager = new CoinManager(field);
+        barrierManager = new BarrierManager(field);
+        holeManager = new HoleManager(field);
+    }
+
+    // Фабричний метод для створення GameField
+    private GameField CreateGameField(MainFrame form)
+    {
+        return new GameField(form);
+    }
+}
+
+internal class GameField
+{
+    private char[,] field;
+    private MainFrame form;
+
+    public GameField(MainFrame form)
+    {
+        this.form = form;
+        field = new char[10, 10];
+    }
+}
+
+	3.4.5 Переваги отриманого коду 
+	1) Покращена гнучкість створення об'єкті
+	2) Спрощене тестування (можна легко підмінити створення об'єкта)
+	3) Централізоване управління створенням об'єктів
+	4) Можливість додати додаткову логіку при створенні об'єкта
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+     4 ВИСНОВКИ
+У результаті виконання практичного завдання було застосовано ключові методи рефакторингу коду до реального програмного проєкту, що дозволило значно покращити його якість, підтримуваність та гнучкість.
+Основні висновки:
+• було успішно реалізовано три методи рефакторингу з книги Мартіна Фаулера - Add Parameter, Remove Parameter та Replace Constructor with Factory Method, які продемонстрували свою ефективність для вирішення конкретних проблем коду;
+• проаналізовано типові проблеми проекту, такі як дублювання коду, надлишкові залежності та жорстке зв'язування об'єктів, та знайдено оптимальні шляхи їх вирішення;
+• відпрацьовано практичні навички ідентифікації "запахів коду" та вибору відповідних методів рефакторингу для конкретних ситуацій;
+• показано безпосередній вплив рефакторингу на архітектуру програми - зменшення зв'язаності між класами, покращення інкапсуляції та підвищення гнучкості системи;
+• закріплено розуміння важливости принципу DRY (Don't Repeat Yourself) на практиці через усунення дублювання логіки розміщення отворів у грі;
+• демонстровано переваги фабричних методів для створення об'єктів, що відкриває можливості для легшого тестування та майбутнього розширення функціоналу.
+Таким чином, виконана робота наочно показала, як систематичне застосування методів рефакторингу дозволяє перетворити навіть невеликий програмний проєкт на більш структуровану, зрозумілу та адаптовану до змін систему. Отриманий досвід підтверджує, що рефакторинг є невід'ємною частиною професійної розробки програмного забезпечення, яка безпосередньо впливає на довгострокову успішність проєкту та продуктивність команди розробників.
+   5 ВИКОРИСТАНІ ДЖЕРЕЛА
+
+1.	Refactoring.martinfowler.com. URL: https://martinfowler.com/books/refactoring.html (дата звернення: 26.11.2025).
+2.	Clean Code: A Handbook of Agile Software Craftsmanship. O’Reilly Online Learning. URL: https://www.oreilly.com/library/view/clean-code-a/9780136083238/ (дата звернення: 26.11.2025).
+3.	Refactoring for different programming languages - Visual Studio (Windows). Microsoft Learn: Build skills that open doors in your career. URL: https://learn.microsoft.com/en-us/visualstudio/ide/refactoring-in-visual-studio (дата звернення: 26.11.2025).
+4.	Books | Steve McConnell. Steve McConnell. URL: https://www.stevemcconnell.com/cc.htm (дата звернення: 27.11.2025).
+5.	Refactoring Workbook | InformIT. InformIT: The Trusted Technology Source for IT Pros and Developers. URL: https://www.informit.com/store/refactoring-workbook-9780321109293 (дата звернення: 27.11.2025). 
+6.	Design Patterns: Elements of Reusable Object-Oriented Software. O’Reilly Online Learning. URL: https://www.oreilly.com/library/view/design-patterns-elements/0201633612/ (дата звернення: 27.11.2025).
+
+
+
+
+
+
+
+
+
+                                                ДОДАТОК А
+Відеозапис
+Відеозапис доповіді: https://youtu.be/-2dJ6lW7vLQ
+
+00:00 - Початок
+00:12 - 00:40 - Вступ
+00:41 - 01:26 - Метод 1
+01:27 - 01:42 - Код для метода 1
+01:43 - 02:15 - Метод 2
+02:16 - 02:26 - Код для метода 2
+02:27 - 03:07 - Метод 3
+03:08 - 03:19 - Код для метода 3
+03:20 - 03:59 - Інструменти для рефакторингу
+04:00 - 04:59 - Висновок
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                              ДОДАТОК Б
+Слайди презентації
+ 
+          Рисунок Б.1 — Титульна сторінка
+
+ 
+                 Рисунок Б.2 — Вступ
+
+ 
+                                      Рисунок Б.3 — Метод 1
+
+ 
+                                       Рисунок Б.4 — Код для методу 1
+
+ 
+                                      Рисунок Б.5 — Метод 2
+
+ 
+                                      Рисунок Б.6 — Код для методу 2
+
+ 
+                                     Рисунок Б.7 — Метод 3
+
+ 
+        Рисунок Б.8 — Код для методу 3
+
+ 
+                                Рисунок Б.9 — Інструменти для рефакторингу
+
+ 
+ 	                                  Рисунок Б.10 — Висновок
+
+
+
+
+     ДОДАТОК В
+Програмний код
+GitHub repository: https://github.com/frien9zone/iwanna100points/tree/main/remakeOnGUI/remakeOnGUI
 
